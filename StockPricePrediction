@@ -1,0 +1,130 @@
+import pandas as pd
+import matplotlib.pyplot as plt
+import numpy as np
+import datetime as dt
+import pandas_datareader 
+import tensorflow
+import mplfinance
+import mpl_toolkits
+
+!pip install scikit-learn
+!pip install mplfinance
+
+from sklearn.preprocessing import MinMaxScaler
+#from tensorflow.keras.models import Sequential
+#from tensorflow.keras.layers import Dense, Dropout, LSTM(long-short term memory)
+
+
+import tensorflow
+from tensorflow import keras
+from tensorflow.keras import layers
+from tensorflow.keras.layers import Dense, Dropout, LSTM
+from tensorflow.keras import models
+from tensorflow.keras.models import Sequential
+
+!pip install yfinance
+
+
+#load data
+import pandas
+from pandas_datareader import data as pdr
+import yfinance as yfin
+yfin.pdr_override()
+
+company = 'GOOG'
+start = dt.datetime(2012,1,1) #timeline here to train model
+end = dt.datetime(2022,3,1)
+
+#load data from yahoo finance api
+data = pdr.get_data_yahoo(company, start, end)
+
+
+
+#prep data for neural network
+
+#scale down values to fit btw 0 and 1
+scaler = MinMaxScaler(feature_range=(0,1))
+
+#only predicting closing price here, reshape for format
+scaled_data = scaler.fit_transform(data['Close'].values.reshape(-1,1))
+
+#look back 60days in order to predict next future day
+prediction_days = 60 #graph output at the end will be more sensitive to short term fluctuations if you choose less than 60 days
+
+x_train = []
+y_train = []
+
+#prep training data
+for x in range(prediction_days, len(scaled_data)):
+    x_train.append(scaled_data[x-prediction_days:x, 0]) #needs more explanation here
+    y_train.append(scaled_data[x, 0]) #61st data point
+
+x_train, y_train = np.array(x_train), np.array(y_train) #convert to numpy arrays
+x_train = np.reshape(x_train, (x_train.shape[0], x_train.shape[1], 1)) #add one extra dimension
+
+#build model
+model = Sequential() #basic neural network
+
+#specify the layers, can do more or less than 50 units for accuaracy 
+model.add(LSTM(units=50, return_sequences=True, input_shape = (x_train.shape[1], 1)))
+model.add(Dropout(0.2))
+model.add(LSTM(units=50, return_sequences=True))
+model.add(Dropout(0.2))
+model.add(LSTM(units=50))
+model.add(Dropout(0.2))
+model.add(Dense(units=1)) #prediction of next closing value
+
+#compile the model, The Mean Squared Error measures how close a regression line is to a set of data points. 
+model.compile(optimizer= 'adam', loss = 'mean_squared_error')
+#fit model on the training data, model will see the same data 24 times from 25 epochs, model sees 32 units at once all the time
+model.fit(x_train, y_train, epochs=25, batch_size=32) 
+
+#test the model accuracy on existing data
+
+#load test data, model hasnt seen this data yet until now so well see how well it performs on that data
+test_start = dt.datetime(2022,3,1)
+test_end = dt.datetime.now()
+
+test_data = pdr.get_data_yahoo(company, test_start, test_end)
+actual_prices = test_data['Close'].values
+
+total_dataset = pd.concat((data['Close'], test_data['Close']), axis = 0)
+
+#this is what our model sees in order to predict the next days closing price
+model_inputs = total_dataset[len(total_dataset) - len(test_data) - prediction_days:].values #want to start asap and go until the end and take the values
+model_inputs = model_inputs.reshape(-1,1)
+model_inputs = scaler.transform(model_inputs) #scale down w the scaler we already have
+
+#make predictions on test data
+
+x_test = []
+
+for x in range(prediction_days, len(model_inputs)):
+    x_test.append(model_inputs[x-prediction_days:x, 0]) #we have x-prediction_days so we do not get negative numbers up until x
+
+x_test = np.array(x_test) #convert to numpy arrays
+x_test = np.reshape(x_test, (x_test.shape[0], x_test.shape[1], 1)) #last 1 is to add another dimension here. this is a tuple off of the shape
+
+predicted_prices = model.predict(x_test)
+predicted_prices = scaler.inverse_transform(predicted_prices) #reverse scale them bc predicted prices are scaled, now were back to the actual predicted prices here
+
+#plot test predictions
+plt.plot(actual_prices, color = 'black', label = f"Actual {company} Price")
+plt.plot(predicted_prices, color = 'green', label = f"Predicted {company} Price")
+plt.title(f"{company} Share Price")
+plt.xlabel('Time')
+plt.ylabel(f"{company} Share Price")
+plt.legend()
+plt.show()
+
+#predict next day
+
+#create real data list
+real_data = [model_inputs[len(model_inputs)+1 - prediction_days: len(model_inputs+1), 0]]
+real_data = np.array(real_data)
+real_data = np.reshape(real_data, (real_data.shape[0], real_data.shape[1], 1)) #reshape and add 1 extra dimension here
+
+prediction = model.predict(real_data) #make real_data as input then predict the next day
+prediction = scaler.inverse_transform(prediction)
+
+print(f"Prediction: {prediction}") #prediction for tomorrow's closing price
