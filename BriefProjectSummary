@@ -4,3 +4,6 @@ The python program uses historical equity data from Yahoo Finance API to train t
 price of the next day and compares this predicted price model to actual equity prices.   
 
 Tools used to design this project include Python for data analysis, Machine Learing toolkit for prediction training and Yahoo Finance API for historical equity data.
+
+you have training data time period (10yrs), then use test data (3yrs) to test how well it does based on the 10yr data we fed it, then 
+use the last 60days in order to predict one day into the future (1 day)
