@@ -1,0 +1,6 @@
+This project uses Machine Learning in order to make equity price prediction for the next day. 
+
+The python program uses historical equity data from Yahoo Finance API to train the model, then using Machine learning to predict equity openning and closing 
+price of the next day and compares this predicted price model to actual equity prices.   
+
+Tools used to design this project include Python for data analysis, Machine Learing toolkit for prediction training and Yahoo Finance API for historical equity data.
